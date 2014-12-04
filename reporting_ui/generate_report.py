@@ -3,10 +3,10 @@
 
 """
 import os
+import sys
 import shutil
 import collections
-
-import pandas as pd
+import json
 
 import nibabel
 
@@ -87,14 +87,17 @@ def generate_report(params_dict, img_src_filenames):
 
     for counter, filename in enumerate(img_src_filenames):
         caption = 'Some caption for component {} goes here'.format(counter)
-        section = api.Section('Component #{}'.format(counter)
-        ).add(
+        section = api.Section('Component #{}'.format(counter))
+        section.add(
             api.Paragraph('This is some paragraph text related to '
                           'component #{}'.format(counter))
-        ).add(
+            )
+        section.add(
             api.Image(filename, caption=caption)
-        )
+            )
         report.add(section)
+    report.add(api.Section('About').add(api.Paragraph('This report has been generated using the nilearn toolkit.')))
+    report.add(api.Section('Contact').add(api.Paragraph('See https://github.com/nilearn/nilearn/')))
 
     return report
 
@@ -103,12 +106,17 @@ if __name__ == '__main__':
     dataset = datasets.fetch_adhd()
     func_files = dataset.func
 
-    params = chose_params()
+    if '--report-only' in sys.argv or '-r' in sys.argv:
+        params = json.load(open('./report/params.json'))
+        img_src_filenames = [os.path.join('images', fname) for fname in os.listdir('./report/images')]
+    else:
+        params = chose_params()
+        json.dump(params, open('./report/params.json', 'w'))
 
-    canica = get_fitted_canica(func_files, **params)
-    # Retrieve the independent components in brain space
-    components_img = canica.masker_.inverse_transform(canica.components_)
-    img_src_filenames = generate_images(components_img)
+        canica = get_fitted_canica(func_files, **params)
+        # Retrieve the independent components in brain space
+        components_img = canica.masker_.inverse_transform(canica.components_)
+        img_src_filenames = generate_images(components_img)
 
     report = generate_report(params, img_src_filenames)
     report.save_html('./report/index.html')
