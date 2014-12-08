@@ -2,7 +2,7 @@
 """
 
 """
-import os
+import os, os.path as osp
 import sys
 import shutil
 import collections
@@ -20,6 +20,8 @@ from externals import tempita
 
 import report_api as api
 
+TEMPLATES = osp.join(osp.dirname(__file__), 'templates')
+REPORT = osp.join(TEMPLATES, 'report')
 
 def chose_params():
     datalist = [('n_components', 20),
@@ -34,11 +36,11 @@ def chose_params():
     result = fedit(datalist, title="CanICA",
                    comment="Enter the CanICA parameters")
 
-    params = dict(zip(adict.keys(), result))
-    params['verbose'] = int(params['verbose'])
-    print 'params: ', params
-    return params
-
+    if result:
+        params = dict(zip(adict.keys(), result))
+        params['verbose'] = int(params['verbose'])
+        print 'params: ', params
+        return params
 
 def get_fitted_canica(func_files, **params):
     input_folder = params.pop('input_folder')
@@ -56,15 +58,13 @@ def get_fitted_canica(func_files, **params):
     return canica
 
 
-def generate_images(components_img):
+def generate_images(components_img, n_components, images_dir):
     # Remove existing images
-    images_dir = './report/images'
-
     if os.path.exists(images_dir):
         shutil.rmtree(images_dir)
     os.makedirs(images_dir)
-    output_filenames = ['./report/images/IC_{}.png'.format(i)
-                        for i in range(params['n_components'])]
+    output_filenames = [osp.join(images_dir, 'IC_{}.png'.format(i))
+                        for i in range(n_components)]
 
     for i, output_file in enumerate(output_filenames):
         plot_stat_map(nibabel.Nifti1Image(components_img.get_data()[..., i],
@@ -72,10 +72,7 @@ def generate_images(components_img):
                       display_mode="z", title="IC %d" % i, cut_coords=7,
                       colorbar=False, output_file=output_file)
 
-    # img src in the html needs to be relative to index.html
-    img_src_filenames = [os.path.relpath(fn, './report') for fn in output_filenames]
-
-    return img_src_filenames
+    return output_filenames
 
 
 def generate_report(params_dict, img_src_filenames):
@@ -102,21 +99,54 @@ def generate_report(params_dict, img_src_filenames):
     return report
 
 
-if __name__ == '__main__':
+def prepare_report_directory(directory):
+    if osp.exists(directory):
+        shutil.rmtree(directory)
+    shutil.copytree(REPORT, directory)
+
+def main():
+
+    import argparse
+
+    parser = argparse.ArgumentParser(description='Run a CanICA computation and produce an HTML report')
+    parser.add_argument('-r', '--report-only', default=False, action='store_true',
+                        help='regenerate the report from an existing comuputation')
+    parser.add_argument('-o', '--output', default='report', metavar='DIRECTORY',
+                        help='directory in which to write the result files and reports',)
+
+    args = parser.parse_args()
+
     dataset = datasets.fetch_adhd()
     func_files = dataset.func
 
-    if '--report-only' in sys.argv or '-r' in sys.argv:
-        params = json.load(open('./report/params.json'))
-        img_src_filenames = [os.path.join('images', fname) for fname in os.listdir('./report/images')]
+    output_dir = osp.abspath(args.output)
+
+    params_file = osp.join(output_dir, 'params.json')
+    if args.report_only:
+        params = json.load(open(params_file))
+        img_src_filenames = [osp.join(output_dir, 'images', fname)
+                             for fname in os.listdir(osp.join(output_dir, 'images'))]
     else:
+        prepare_report_directory(output_dir)
+
         params = chose_params()
-        json.dump(params, open('./report/params.json', 'w'))
+        if params:
+            canica = get_fitted_canica(func_files, **params)
+            # Retrieve the independent components in brain space
+            components_img = canica.masker_.inverse_transform(canica.components_)
+            img_src_filenames = generate_images(components_img, params['n_compoanents'],
+                                                osp.join(output_dir, 'images'))
+            json.dump(params, open(osp.join(output_dir, 'params.json'), 'w'))
+            # img src in the html needs to be relative to index.html
+            img_src_filenames = [os.path.relpath(fn, output_dir) for fn in img_src_filenames]
 
-        canica = get_fitted_canica(func_files, **params)
-        # Retrieve the independent components in brain space
-        components_img = canica.masker_.inverse_transform(canica.components_)
-        img_src_filenames = generate_images(components_img)
 
-    report = generate_report(params, img_src_filenames)
-    report.save_html('./report/index.html')
+    if params:
+        report = generate_report(params, img_src_filenames)
+        reportindex = osp.abspath(osp.join(output_dir, 'index.html'))
+        report.save_html(reportindex)
+
+
+
+if __name__ == '__main__':
+    main()

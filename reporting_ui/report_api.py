@@ -1,4 +1,5 @@
 import re
+import os.path as osp
 
 import tempita
 
@@ -20,8 +21,9 @@ class Container(object):
 class Report(Container):
     def __init__(self):
         super(Report, self).__init__()
+        from .generate_report import TEMPLATES
         self.template = tempita.Template.from_filename(
-            './templates/main_template.html')
+            osp.join(TEMPLATES, 'main_template.html'))
 
     def get_sidebar_html(self):
         sidebar_template = tempita.Template(
