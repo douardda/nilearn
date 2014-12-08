@@ -14,11 +14,12 @@ from nilearn import datasets
 from nilearn.plotting import plot_stat_map
 from nilearn.decomposition.canica import CanICA
 
-from externals.formlayout.formlayout import fedit
+from externals.formlayout.formlayout import fedit, QApplication, QWebView
 
 from externals import tempita
 
 import report_api as api
+from .reportviewer import ReportViewer
 
 TEMPLATES = osp.join(osp.dirname(__file__), 'templates')
 REPORT = osp.join(TEMPLATES, 'report')
@@ -119,6 +120,8 @@ def main():
     dataset = datasets.fetch_adhd()
     func_files = dataset.func
 
+    app = QApplication(sys.argv)
+
     output_dir = osp.abspath(args.output)
 
     params_file = osp.join(output_dir, 'params.json')
@@ -146,6 +149,9 @@ def main():
         reportindex = osp.abspath(osp.join(output_dir, 'index.html'))
         report.save_html(reportindex)
 
+        viewer = ReportViewer('file://{}'.format(reportindex))
+        viewer.show()
+        viewer.exec_()
 
 
 if __name__ == '__main__':
