@@ -415,7 +415,7 @@ def generate_example_rst(app):
         examples.
     """
     root_dir = os.path.join(app.builder.srcdir, 'auto_examples')
-    example_dir = os.path.abspath(app.builder.srcdir + '/..')
+    example_dir = os.path.abspath(app.builder.srcdir + '/../' + 'examples')
     try:
         plot_gallery = eval(app.builder.config.plot_gallery)
     except TypeError:
@@ -805,9 +805,15 @@ def generate_file_rst(fname, target_dir, src_dir, root_dir, plot_gallery):
                     # Set the fig_num figure as the current figure as we can't
                     # save a figure that's not the current figure.
                     fig = plt.figure(fig_num)
-                    fig.savefig(image_path % fig_num,
-                                facecolor=fig.get_facecolor(),
-                                edgecolor=fig.get_edgecolor())
+                    kwargs = {}
+                    to_rgba = matplotlib.colors.colorConverter.to_rgba
+                    for attr in ['facecolor', 'edgecolor']:
+                        fig_attr = getattr(fig, 'get_' + attr)()
+                        default_attr = matplotlib.rcParams['figure.' + attr]
+                        if to_rgba(fig_attr) != to_rgba(default_attr):
+                            kwargs[attr] = fig_attr
+
+                    fig.savefig(image_path % fig_num, **kwargs)
                     figure_list.append(image_fname % fig_num)
             except:
                 print 80 * '_'
