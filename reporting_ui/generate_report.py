@@ -7,6 +7,7 @@ import sys
 import shutil
 import collections
 import json
+import threading
 
 import nibabel
 
@@ -14,12 +15,12 @@ from nilearn import datasets
 from nilearn.plotting import plot_stat_map, plot_glass_brain
 from nilearn.decomposition.canica import CanICA
 
-from externals.formlayout.formlayout import fedit, QApplication, QWebView
+from externals.formlayout.formlayout import fedit, QApplication
 
 from externals import tempita
 
 import report_api as api
-from .reportviewer import ReportViewer
+from .reportviewer import ReportViewer, ComputationProgressViewer
 
 TEMPLATES = osp.join(osp.dirname(__file__), 'templates')
 REPORT = osp.join(TEMPLATES, 'report')
@@ -114,6 +115,18 @@ def prepare_report_directory(directory):
         shutil.rmtree(directory)
     shutil.copytree(REPORT, directory)
 
+
+def run(func_files, params, output_dir):
+    canica = get_fitted_canica(func_files, **params)
+    # Retrieve the independent components in brain space
+    components_img = canica.masker_.inverse_transform(canica.components_)
+    generate_images(components_img, params['n_components'],
+                    osp.join(output_dir, 'images'),
+                    glass=True)
+    json.dump(params, open(osp.join(output_dir, 'params.json'), 'w'))
+
+
+
 def main():
 
     import argparse
@@ -141,12 +154,17 @@ def main():
 
         params = chose_params()
         if params:
-            canica = get_fitted_canica(func_files, **params)
-            # Retrieve the independent components in brain space
-            components_img = canica.masker_.inverse_transform(canica.components_)
-            generate_images(components_img, params['n_components'],
-                            osp.join(output_dir, 'images'),
-                            glass=True)
+            stdout = sys.stdout
+            dlg = ComputationProgressViewer()
+            sys.stdout = dlg
+            compute_thread = threading.Thread(target=run,
+                                              args=(func_files, params, output_dir))
+            compute_thread.start()
+            dlg.show()
+            while compute_thread.isAlive():
+                sys.stderr.write('.')
+                app.processEvents()
+            sys.stdout = stdout
             json.dump(params, open(osp.join(output_dir, 'params.json'), 'w'))
 
     if params:
