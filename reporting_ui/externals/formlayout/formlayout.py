@@ -1,6 +1,5 @@
 # -*- coding: utf-8 -*-
-"""
-formlayout
+"""formlayout
 ==========
 
 Module creating Qt form dialogs/layouts to edit various type of parameters
@@ -31,11 +30,16 @@ HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
 WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
 FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 OTHER DEALINGS IN THE SOFTWARE.
+
+WARNING: this is a modified version of the original formlayout code to
+meet the needs of the nilearn project.
+
 """
 
 from __future__ import print_function
 
 # History:
+# XXX: modifications for the nilearn project
 # 1.0.15: added support for multiline strings
 # 1.0.14: fixed Python 3 support (regression in 1.0.13)
 # 1.0.13: replaced obsolete QColorDialog.getRgba function and fixed other
@@ -68,6 +72,11 @@ if os.environ['QT_API'] == 'pyqt':
         os.environ['QT_API'] = _modname = 'pyside'
 
 if os.environ['QT_API'] == 'pyqt':
+    import sip
+    sip.setapi('QString', 2)
+    sip.setapi('QVariant', 2)
+    sip.setapi('QUrl', 2)
+    
     try:
         from PyQt4.QtGui import QFormLayout
     except ImportError:
@@ -79,12 +88,14 @@ if os.environ['QT_API'] == 'pyqt':
                      QStackedWidget, QDateEdit, QDateTimeEdit, QFont,
                      QFontComboBox, QFontDatabase, QGridLayout, QTextEdit,
                      QDoubleValidator, QFileDialog)
+    from PyQt4.QtWebKit import QWebView
+    from PyQt4.QtCore import QUrl
     from PyQt4.QtCore import Qt, SIGNAL, SLOT, QSize
     from PyQt4.QtCore import pyqtSlot as Slot
     from PyQt4.QtCore import pyqtSignal as Signal
     from PyQt4.QtCore import pyqtProperty as Property
 
-if os.environ['QT_API'] == 'pyside':
+elif os.environ['QT_API'] == 'pyside':
     from PySide.QtGui import (QWidget, QLineEdit, QComboBox, QLabel, QSpinBox,
                      QIcon, QStyle, QDialogButtonBox, QHBoxLayout,
                      QVBoxLayout, QDialog, QColor, QPushButton, QToolButton, QCheckBox,
@@ -92,7 +103,9 @@ if os.environ['QT_API'] == 'pyside':
                      QStackedWidget, QDateEdit, QDateTimeEdit, QFont,
                      QFontComboBox, QFontDatabase, QGridLayout, QTextEdit,
                      QDoubleValidator, QFormLayout, QFileDialog)
+    from PySide.QtCore import QUrl
     from PySide.QtCore import Qt, SIGNAL, SLOT, QSize, Slot, Signal, Property
+    from PySide.QtWebKit import QWebView
 
 
 # ----+- Python 3 compatibility -+----
