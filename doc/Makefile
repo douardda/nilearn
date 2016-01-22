@@ -20,6 +20,7 @@ help:
 	@echo "Please use \`make <target>' where <target> is one of"
 	@echo "  html      to make standalone HTML files"
 	@echo "  html-noplot to make standalone HTML files, without plotting anything"
+	@echo "  check     to do a sanity check of the documentation"
 	@echo "  dirhtml   to make HTML files named index.html in directories"
 	@echo "  pickle    to make pickle files"
 	@echo "  json      to make JSON files"
@@ -37,18 +38,30 @@ clean:
 	-rm -rf generated/*
 	-rm -rf modules/generated/*
 
+force_html: force html
+
+force:
+	find . -name \*.rst -exec touch {} \;
+
 html:
 	# These two lines make the build a bit more lengthy, and the
 	# the embedding of images more robust
 	rm -rf $(BUILDDIR)/html/_images
-	#find . -name \*.rst -exec touch {} \;
 	$(SPHINXBUILD) -b html $(ALLSPHINXOPTS) $(BUILDDIR)/html
 	touch $(BUILDDIR)/html .nojekyll
 	@echo
 	@echo "Build finished. The HTML pages are in $(BUILDDIR)/html."
 
+html-strict:
+	# Build html documentation using a strict mode: Warnings are
+	# considered as errors.
+	make check
+	touch $(BUILDDIR)/html .nojekyll
+	@echo
+	@echo "Build finished. The HTML pages are in $(BUILDDIR)/html."
+
 html-noplot:
-	$(SPHINXBUILD) -D plot_gallery=False -b html $(ALLSPHINXOPTS) $(BUILDDIR)/html
+	$(SPHINXBUILD) -D plot_gallery=0 -b html $(ALLSPHINXOPTS) $(BUILDDIR)/html
 	touch $(BUILDDIR)/html .nojekyll
 	@echo
 	@echo "Build finished. The HTML pages are in $(BUILDDIR)/html."
@@ -128,12 +141,23 @@ pdf: latex
 	cp _build/latex/nilearn-nup.pdf nilearn.pdf
 	#cd _build/latex ; make all-pdf ; pdfnup nilearn.pdf
 
+check:
+	rm -rf _build/doctrees
+	rm -rf $(BUILDDIR)/html/_images
+	$(SPHINXBUILD) -W -T -n -b html $(ALLSPHINXOPTS) $(BUILDDIR)/html
+
 install:
-	rm -rf _build/doctrees/
+	rm -rf _build/doctrees _build/nilearn.github.io
+	# first clone the nilearn.github.io repo because it may ask
+	# for password and we don't want to delay this long build in
+	# the middle of it
+	# --no-checkout just fetches the root folder without content
+	# --depth 1 is a speed optimization since we don't need the
+	# history prior to the last commit
+	git clone --no-checkout --depth 1 https://github.com/nilearn/nilearn.github.io.git _build/nilearn.github.io
+	touch _build/nilearn.github.io/.nojekyll
 	make html
-	rm -rf _build/nilearn.github.io
 	cd _build/ && \
-        git clone git@github.com:nilearn/nilearn.github.io.git && \
 	cp -r html/* nilearn.github.io && \
 	cd nilearn.github.io && \
 	git add * && \

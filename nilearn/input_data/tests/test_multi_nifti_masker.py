@@ -13,8 +13,9 @@ from nibabel import Nifti1Image
 import nibabel
 from distutils.version import LooseVersion
 
-from ..multi_nifti_masker import MultiNiftiMasker
-from ..._utils import testing
+from nilearn.input_data.multi_nifti_masker import MultiNiftiMasker
+from nilearn._utils.testing import assert_raises_regex, write_tmp_imgs
+from nilearn._utils.exceptions import DimensionError
 
 
 def test_auto_mask():
@@ -43,6 +44,12 @@ def test_auto_mask():
     masker.transform([[img, ]])
     # It should also work with a 3D image
     masker.transform(img)
+
+    # check exception when transform() called without prior fit()
+    masker2 = MultiNiftiMasker(mask_img=img)
+    assert_raises_regex(
+        ValueError,
+        'has not been fitted. ', masker2.transform, img2)
 
 
 def test_nan():
@@ -94,6 +101,13 @@ def test_3d_images():
     # This is mostly a smoke test
     assert_equal(len(epis), 2)
 
+    # verify that 4D mask arguments are refused
+    mask_img_4d = Nifti1Image(np.ones((2, 2, 2, 2), dtype=np.int8),
+                              affine=np.diag((4, 4, 4, 1)))
+    masker2 = MultiNiftiMasker(mask_img=mask_img_4d)
+    assert_raises_regex(DimensionError, "Data must be a 3D",
+                        masker2.fit)
+
 
 def test_joblib_cache():
     if not LooseVersion(nibabel.__version__) > LooseVersion('1.1.0'):
@@ -101,14 +115,15 @@ def test_joblib_cache():
         raise SkipTest
     from sklearn.externals.joblib import hash
     # Dummy mask
-    data = np.zeros((40, 40, 40, 2))
-    data[20, 20, 20] = 1
-    data_img = Nifti1Image(data, np.eye(4))
+    mask = np.zeros((40, 40, 40))
+    mask[20, 20, 20] = 1
+    mask_img = Nifti1Image(mask, np.eye(4))
 
-    with testing.write_tmp_imgs(data_img, create_files=True)\
-                as filename:
+    with write_tmp_imgs(mask_img, create_files=True) as filename:
         masker = MultiNiftiMasker(mask_img=filename)
         masker.fit()
         mask_hash = hash(masker.mask_img_)
         masker.mask_img_.get_data()
         assert_true(mask_hash == hash(masker.mask_img_))
+        # enables to delete "filename" on windows
+        del masker

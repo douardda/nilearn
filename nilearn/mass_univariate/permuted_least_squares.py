@@ -1,10 +1,10 @@
 """
 Massively Univariate Linear Model estimated with OLS and permutation test.
-
 """
 # Author: Benoit Da Mota, <benoit.da_mota@inria.fr>, sept. 2011
 #         Virgile Fritsch, <virgile.fritsch@inria.fr>, jan. 2014
 import warnings
+
 import numpy as np
 from scipy import linalg
 from sklearn.utils import check_random_state
@@ -197,7 +197,7 @@ def _permuted_ols_on_chunk(scores_original_data, tested_vars, target_vars,
     # run the permutations
     h0_fmax_part = np.empty((n_perm_chunk, n_regressors))
     scores_as_ranks_part = np.zeros((n_regressors, n_descriptors))
-    for i in xrange(n_perm_chunk):
+    for i in range(n_perm_chunk):
         if intercept_test:
             # sign swap (random multiplication by 1 or -1)
             target_vars = (target_vars
@@ -234,7 +234,7 @@ def _permuted_ols_on_chunk(scores_original_data, tested_vars, target_vars,
 
 def permuted_ols(tested_vars, target_vars, confounding_vars=None,
                  model_intercept=True, n_perm=10000, two_sided_test=True,
-                 random_state=None, n_jobs=1):
+                 random_state=None, n_jobs=1, verbose=0):
     """Massively univariate group analysis with permuted OLS.
 
     Tested variates are independently fitted to target variates descriptors
@@ -295,8 +295,11 @@ def permuted_ols(tested_vars, target_vars, confounding_vars=None,
     n_jobs : int,
       Number of parallel workers.
       If 0 is provided, all CPUs are used.
-      A negative number indicates that all the CPUs except (|n_jobs| - 1) ones
-      will be used.
+      A negative number indicates that all the CPUs except (abs(n_jobs) - 1)
+      ones will be used.
+
+    verbose: int, optional
+        verbosity level (0 means no message).
 
     Returns
     -------
@@ -440,13 +443,14 @@ def permuted_ols(tested_vars, target_vars, confounding_vars=None,
         return np.asarray([]), scores_original_data,  np.asarray([])
     # actual permutations, seeded from a random integer between 0 and maximum
     # value represented by np.int32 (to have a large entropy).
-    ret = joblib.Parallel(n_jobs=n_jobs)(joblib.delayed(_permuted_ols_on_chunk)
-          (scores_original_data, testedvars_resid_covars,
-           targetvars_resid_covars.T, covars_orthonormalized,
-           n_perm_chunk=n_perm_chunk, intercept_test=intercept_test,
-           two_sided_test=two_sided_test,
-           random_state=rng.random_integers(np.iinfo(np.int32).max))
-          for n_perm_chunk in n_perm_chunks)
+    ret = joblib.Parallel(n_jobs=n_jobs, verbose=verbose)(
+        joblib.delayed(_permuted_ols_on_chunk)(
+            scores_original_data, testedvars_resid_covars,
+            targetvars_resid_covars.T, covars_orthonormalized,
+            n_perm_chunk=n_perm_chunk, intercept_test=intercept_test,
+            two_sided_test=two_sided_test,
+            random_state=rng.random_integers(np.iinfo(np.int32).max - 1))
+        for n_perm_chunk in n_perm_chunks)
     # reduce results
     scores_as_ranks_parts, h0_fmax_parts = zip(*ret)
     h0_fmax = np.hstack((h0_fmax_parts))

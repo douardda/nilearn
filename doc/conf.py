@@ -21,6 +21,7 @@ import shutil
 # is relative to the documentation root, use os.path.abspath to make it
 # absolute, like shown here.
 sys.path.insert(0, os.path.abspath('sphinxext'))
+import sphinx_gallery
 
 # We also add the directory just above to enable local imports of nilearn
 sys.path.insert(0, os.path.abspath('..'))
@@ -34,26 +35,15 @@ except IOError:
 
 # -- General configuration ---------------------------------------------------
 
-# Try to override the matplotlib configuration as early as possible
-try:
-    import gen_rst
-except:
-    pass
-
 # Add any Sphinx extension module names here, as strings. They can be
 # extensions coming with Sphinx (named 'sphinx.ext.*') or your custom ones.
-extensions = ['gen_rst',
-              'sphinx.ext.autodoc', 'sphinx.ext.autosummary',
+extensions = ['sphinx.ext.autodoc', 'sphinx.ext.autosummary',
               'sphinx.ext.pngmath', 'sphinx.ext.intersphinx',
+              'numpydoc.numpydoc',
+              'sphinx_gallery.gen_gallery',
               ]
-try:
-    import numpy_ext.numpydoc
-    extensions.append('numpy_ext.numpydoc')
-    # With older versions of sphinx, this causes a crash
-    autosummary_generate = True
-except:
-    # Older version of sphinx
-    extensions.append('numpy_ext_old.numpydoc')
+
+autosummary_generate = True
 
 autodoc_default_flags = ['members', 'inherited-members']
 
@@ -73,11 +63,11 @@ source_suffix = '.rst'
 plot_gallery = True
 
 # The master toctree document.
-master_doc = 'user_guide'
+master_doc = 'index'
 
 # General information about the project.
-project = u'NiLearn'
-copyright = u'INRIA Parietal 2010-2013'
+project = u'Nilearn'
+copyright = u'The nilearn developers 2010-2015'
 
 # The version info for the project you're documenting, acts as replacement for
 # |version| and |release|, also used in various other places throughout the
@@ -101,6 +91,7 @@ language = 'en'
 
 # List of documents that shouldn't be included in the build.
 #unused_docs = []
+exclude_patterns = ['tune_toc.rst', ]
 
 # List of directories, relative to source directory, that shouldn't be
 # searched for source files.
@@ -154,7 +145,7 @@ html_theme_path = ['themes']
 html_title = "Machine learning for NeuroImaging"
 
 # A shorter title for the navigation bar.  Default is the same as html_title.
-html_short_title = 'NiLearn'
+html_short_title = 'Nilearn'
 
 # The name of an image file (relative to this directory) to place at the top
 # of the sidebar.
@@ -223,7 +214,7 @@ htmlhelp_basename = 'PythonScientic'
 latex_documents = [
   ('index', 'nilearn.tex', u'NeuroImaging with scikit-learn',
    ur"""Gaël Varoquaux and Alexandre Abraham"""
-   + r"\\\relax ~\\\relax http://nilearn.github.com",
+   + r"\\\relax ~\\\relax http://nilearn.github.io",
    'manual'),
 
 ]
@@ -285,9 +276,35 @@ extlinks = {
     'compound': (_python_doc_base + '/reference/compound_stmts.html#%s', ''),
 }
 
+sphinx_gallery_conf = {
+    'doc_module'        : 'nilearn',
+    'reference_url'     : {
+        'nilearn': None,
+        'matplotlib': 'http://matplotlib.org',
+        'numpy': 'http://docs.scipy.org/doc/numpy-1.6.0',
+        'scipy': 'http://docs.scipy.org/doc/scipy-0.11.0/reference',
+        'nibabel': 'http://nipy.org/nibabel',
+        'sklearn': 'http://scikit-learn.org/stable'}
+    }
 
+# Get rid of spurious warnings due to some interaction between
+# autosummary and numpydoc. See
+# https://github.com/phn/pytpm/issues/3#issuecomment-12133978 for more
+# details
+numpydoc_show_class_members = False
+
+
+def touch_example_backreferences(app, what, name, obj, options, lines):
+    # generate empty examples files, so that we don't get
+    # inclusion errors if there are no examples for a class / module
+    examples_path = os.path.join(app.srcdir, "modules", "generated",
+                                 "%s.examples" % name)
+    if not os.path.exists(examples_path):
+        # touch file
+        open(examples_path, 'w').close()
 
 # Add the 'copybutton' javascript, to hide/show the prompt in code
 # examples
 def setup(app):
     app.add_javascript('copybutton.js')
+    app.connect('autodoc-process-docstring', touch_example_backreferences)

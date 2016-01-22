@@ -22,14 +22,16 @@ from nilearn.input_data import NiftiMasker
 
 ### Load Localizer contrast ###################################################
 n_samples = 20
-dataset_files = datasets.fetch_localizer_calculation_task(n_subjects=n_samples)
+localizer_dataset = datasets.fetch_localizer_calculation_task(
+    n_subjects=n_samples)
 tested_var = np.ones((n_samples, 1))
 
 ### Mask data #################################################################
 nifti_masker = NiftiMasker(
     smoothing_fwhm=5,
     memory='nilearn_cache', memory_level=1)  # cache options
-fmri_masked = nifti_masker.fit_transform(dataset_files.cmaps)
+cmap_filenames = localizer_dataset.cmaps
+fmri_masked = nifti_masker.fit_transform(cmap_filenames)
 
 ### Anova (parametric F-scores) ###############################################
 from nilearn._utils.fixes import f_regression
@@ -43,7 +45,7 @@ neg_log_pvals_anova_unmasked = nifti_masker.inverse_transform(
     neg_log_pvals_anova)
 
 ### Visualization #############################################################
-from nilearn.plotting import plot_stat_map
+from nilearn.plotting import plot_stat_map, show
 
 # Various plotting parameters
 z_slice = 45  # plotted slice
@@ -51,17 +53,19 @@ from nilearn.image.resampling import coord_transform
 affine = neg_log_pvals_anova_unmasked.get_affine()
 _, _, k_slice = coord_transform(0, 0, z_slice,
                                 linalg.inv(affine))
-k_slice = round(k_slice)
+
+k_slice = np.round(k_slice)
 threshold = - np.log10(0.1)  # 10% corrected
 
 # Plot Anova p-values
 fig = plt.figure(figsize=(5, 6), facecolor='w')
 display = plot_stat_map(neg_log_pvals_anova_unmasked,
-                        cmap=plt.cm.autumn, threshold=threshold,
+                        threshold=threshold,
                         display_mode='z', cut_coords=[z_slice],
                         figure=fig)
 
-masked_pvals = np.ma.masked_less(neg_log_pvals_anova_unmasked.get_data(), threshold)
+masked_pvals = np.ma.masked_less(neg_log_pvals_anova_unmasked.get_data(),
+                                 threshold)
 
 title = ('Negative $\log_{10}$ p-values'
          '\n(Parametric + Bonferroni correction)'
@@ -69,4 +73,4 @@ title = ('Negative $\log_{10}$ p-values'
 
 display.title(title, y=1.1, alpha=0.8)
 
-plt.show()
+show()

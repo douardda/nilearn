@@ -10,6 +10,39 @@ uses.
 .. contents:: **List of modules**
    :local:
 
+
+.. _connectome_ref:
+
+:mod:`nilearn.connectome`: Functional Connectivity
+====================================================
+
+.. automodule:: nilearn.connectome
+   :no-members:
+   :no-inherited-members:
+
+**Classes**:
+
+.. currentmodule:: nilearn.connectome
+
+.. autosummary::
+   :toctree: generated/
+   :template: class.rst
+   
+   ConnectivityMeasure
+   GroupSparseCovariance
+   GroupSparseCovarianceCV
+
+**Functions**:
+
+.. currentmodule:: nilearn.connectome
+
+.. autosummary::
+   :toctree: generated/
+   :template: function.rst
+
+   sym_to_vec
+   group_sparse_covariance
+
 .. _datasets_ref:
 
 :mod:`nilearn.datasets`: Automatic Dataset Fetching
@@ -29,15 +62,25 @@ uses.
    :toctree: generated/
    :template: function.rst
 
+   fetch_atlas_craddock_2012
+   fetch_atlas_destrieux_2009
+   fetch_atlas_harvard_oxford
+   fetch_atlas_msdl
+   fetch_atlas_power_2011
+   fetch_atlas_smith_2009
+   fetch_atlas_yeo_2011
+   fetch_atlas_aal
+   fetch_abide_pcp
    fetch_adhd
-   fetch_craddock_2011_atlas
    fetch_haxby
    fetch_haxby_simple
-   fetch_nyu_rest
    fetch_icbm152_2009
-   fetch_msdl_atlas
-   fetch_yeo_2011_atlas
-   load_harvard_oxford
+   fetch_localizer_contrasts
+   fetch_localizer_calculation_task
+   fetch_miyawaki2008
+   fetch_nyu_rest
+   fetch_oasis_vbm
+   fetch_megatrawls_netmats
 
 .. _decoding_ref:
 
@@ -55,12 +98,14 @@ uses.
 .. autosummary::
    :toctree: generated/
    :template: class.rst
-   
+
+   SpaceNetClassifier
+   SpaceNetRegressor
    SearchLight
 
 .. _decomposition_ref:
 
-:mod:`nilearn.decompositon`: Multivariate decompositions
+:mod:`nilearn.decomposition`: Multivariate decompositions
 =========================================================
 
 .. automodule:: nilearn.decomposition
@@ -76,6 +121,7 @@ uses.
    :template: class.rst
 
    CanICA
+   DictLearning
 
 .. _image_ref:
 
@@ -94,14 +140,18 @@ uses.
    :toctree: generated/
    :template: function.rst
 
+   crop_img
+   copy_img
+   index_img
+   iter_img
    high_variance_confounds
-   smooth_img
+   mean_img
+   new_img_like
    resample_img
    reorder_img
-   crop_img
-   mean_img
+   smooth_img
    swap_img_hemispheres
-
+   threshold_img
 
 .. _io_ref:
 
@@ -126,6 +176,7 @@ uses.
    MultiNiftiMasker
    NiftiLabelsMasker
    NiftiMapsMasker
+   NiftiSpheresMasker
 
 .. _masking_ref:
 
@@ -140,21 +191,50 @@ uses.
 
 **Functions**:
 
-.. currentmodule:: nilearn.region
+.. currentmodule:: nilearn.masking
 
 .. autosummary::
    :toctree: generated/
    :template: function.rst
 
+   compute_epi_mask
+   compute_multi_epi_mask
+   compute_background_mask
+   compute_multi_background_mask
+   intersect_masks
+   apply_mask
+   unmask
+
+:mod:`nilearn.regions`: Operating on regions
+============================================
+
+.. automodule:: nilearn.regions
+   :no-members:
+   :no-inherited-members:
+
+**Functions**:
+
+.. currentmodule:: nilearn.regions
+
+.. autosummary::
+   :toctree: generated/
+   :template: function.rst
+
+   connected_regions
    img_to_signals_labels
    signals_to_img_labels
    img_to_signals_maps
    signals_to_img_maps
 
-.. seealso::
+**Classes**:
 
-   :func:`nilearn.masking.apply_mask`,
-   :func:`nilearn.masking.unmask`
+.. currentmodule:: nilearn.regions
+
+.. autosummary::
+   :toctree: generated/
+   :template: class.rst
+
+   RegionExtractor   
 
 
 :mod:`nilearn.mass_univariate`: Mass-univariate analysis
@@ -195,12 +275,17 @@ uses.
    :toctree: generated/
    :template: function.rst
 
+   find_cut_slices
+   find_xyz_cut_coords
    plot_anat
    plot_img
    plot_epi
    plot_roi
    plot_stat_map
-   find_xyz_cut_coords
+   plot_glass_brain
+   plot_connectome
+   plot_prob_atlas
+   show
 
 **Classes**:
 
@@ -209,7 +294,7 @@ uses.
 .. autosummary::
    :toctree: generated/
    :template: class.rst
-   
+
    OrthoSlicer
 
 
@@ -233,5 +318,7 @@ uses.
    :template: function.rst
 
    clean
+   high_variance_confounds
+
 
 

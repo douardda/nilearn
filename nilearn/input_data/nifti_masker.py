@@ -4,23 +4,75 @@ Transformer used to apply basic transformations on MRI data.
 # Author: Gael Varoquaux, Alexandre Abraham
 # License: simplified BSD
 
-import warnings
+from copy import copy as copy_object
 from sklearn.externals.joblib import Memory
 
 from .. import masking
 from .. import image
 from .. import _utils
 from .._utils import CacheMixin
-from .base_masker import BaseMasker
+from .._utils.class_inspect import get_params
+from .base_masker import BaseMasker, filter_and_extract
+from nilearn._utils.niimg_conversions import _check_same_fov
+
+
+class _ExtractionFunctor(object):
+
+    func_name = 'nifti_masker_extractor'
+
+    def __init__(self, mask_img_):
+        self.mask_img_ = mask_img_
+
+    def __call__(self, imgs):
+        return masking.apply_mask(imgs, self.mask_img_), imgs.get_affine()
+
+
+def filter_and_mask(imgs, mask_img_, parameters,
+                    memory_level=0, memory=Memory(cachedir=None),
+                    verbose=0,
+                    confounds=None,
+                    copy=True):
+
+    imgs = _utils.check_niimg(imgs, atleast_4d=True, ensure_ndim=4)
+
+    # Check whether resampling is truly necessary. If so, crop mask
+    # as small as possible in order to speed up the process
+
+    if not _check_same_fov(imgs, mask_img_):
+        parameters = copy_object(parameters)
+        # now we can crop
+        mask_img_ = image.crop_img(mask_img_, copy=False)
+        parameters['target_shape'] = mask_img_.shape
+        parameters['target_affine'] = mask_img_.get_affine()
+
+    data, affine = filter_and_extract(imgs, _ExtractionFunctor(mask_img_),
+                                      parameters,
+                                      memory_level=memory_level,
+                                      memory=memory,
+                                      verbose=verbose,
+                                      confounds=confounds, copy=copy)
+
+    # For _later_: missing value removal or imputing of missing data
+    # (i.e. we want to get rid of NaNs, if smoothing must be done
+    # earlier)
+    # Optionally: 'doctor_nan', remove voxels with NaNs, other option
+    # for later: some form of imputation
+
+    return data, affine
 
 
 class NiftiMasker(BaseMasker, CacheMixin):
-    """Nifti data loader with preprocessing
+    """Class for masking of Niimg-like objects.
+
+    NiftiMasker is useful when preprocessing (detrending, standardization,
+    resampling, etc.) of in-mask voxels is necessary. Use case: working with
+    time series of resting-state or task maps.
 
     Parameters
     ----------
-    mask_img : filename or NiImage, optional
-        Mask of the data. If not given, a mask is computed in the fit step.
+    mask_img : Niimg-like object, optional
+        See http://nilearn.github.io/manipulating_visualizing/manipulating_images.html#niimg.
+        Mask for the data. If not given, a mask is computed in the fit step.
         Optional parameters (mask_args and mask_strategy) can be set to
         fine tune the mask extraction.
 
@@ -73,6 +125,13 @@ class NiftiMasker(BaseMasker, CacheMixin):
         to fine-tune mask computation. Please see the related documentation
         for details.
 
+    sample_mask : Any type compatible with numpy-array indexing
+        Masks the niimgs along time/fourth dimension. This complements
+        3D masking by the mask_img argument. This masking step is applied
+        before data preprocessing at the beginning of NiftiMasker.transform.
+        This is useful to perform data subselection as part of a scikit-learn
+        pipeline.
+
     memory : instance of joblib.Memory or string
         Used to cache the masking process.
         By default, no caching is done. If a string is given, it is the
@@ -87,13 +146,11 @@ class NiftiMasker(BaseMasker, CacheMixin):
 
     Attributes
     ----------
-
-    `mask_img_` : Nifti like image
-        The mask of the data. If no mask was given at masker creation, contains
-        the automatically computed mask.
+    `mask_img_` : nibabel.Nifti1Image
+        The mask of the data, or the computed one.
 
     `affine_` : 4x4 numpy array
-        Affine of the transformed NiImages.
+        Affine of the transformed image.
 
     See also
     --------
@@ -108,7 +165,7 @@ class NiftiMasker(BaseMasker, CacheMixin):
                  low_pass=None, high_pass=None, t_r=None,
                  target_affine=None, target_shape=None,
                  mask_strategy='background',
-                 mask_args=None,
+                 mask_args=None, sample_mask=None,
                  memory_level=1, memory=Memory(cachedir=None),
                  verbose=0
                  ):
@@ -126,10 +183,17 @@ class NiftiMasker(BaseMasker, CacheMixin):
         self.target_shape = target_shape
         self.mask_strategy = mask_strategy
         self.mask_args = mask_args
+        self.sample_mask = sample_mask
 
         self.memory = memory
         self.memory_level = memory_level
         self.verbose = verbose
+
+    def _check_fitted(self):
+        if not hasattr(self, 'mask_img_'):
+            raise ValueError('It seems that %s has not been fitted. '
+                             'You must call fit() before calling transform().'
+                             % self.__class__.__name__)
 
     def fit(self, imgs=None, y=None):
         """Compute the mask corresponding to the data
@@ -137,6 +201,7 @@ class NiftiMasker(BaseMasker, CacheMixin):
         Parameters
         ----------
         imgs: list of Niimg-like objects
+            See http://nilearn.github.io/manipulating_visualizing/manipulating_images.html#niimg.
             Data on which the mask must be calculated. If this is a list,
             the affine is considered the same for all.
         """
@@ -144,9 +209,9 @@ class NiftiMasker(BaseMasker, CacheMixin):
 
         # Load data (if filenames are given, load them)
         if self.verbose > 0:
-            print "[%s.fit] Loading data from %s" % (
+            print("[%s.fit] Loading data from %s" % (
                             self.__class__.__name__,
-                            _utils._repr_niimgs(imgs)[:200])
+                            _utils._repr_niimgs(imgs)[:200]))
 
         # Compute the mask if not given by the user
         if self.mask_img is None:
@@ -158,25 +223,20 @@ class NiftiMasker(BaseMasker, CacheMixin):
                 compute_mask = masking.compute_epi_mask
             else:
                 raise ValueError("Unknown value of mask_strategy '%s'. "
-                    "Acceptable values are 'background' and 'epi'.")
+                                 "Acceptable values are 'background' and "
+                                 "'epi'." % self.mask_strategy)
             if self.verbose > 0:
-                print "[%s.fit] Computing the mask" % self.__class__.__name__
-            imgs = _utils.check_niimgs(imgs, accept_3d=True)
-            self.mask_img_ = self._cache(compute_mask,
-                              memory_level=1,
-                              ignore=['verbose'])(
-                imgs,
-                verbose=(self.verbose - 1),
-                **mask_args)
+                print("[%s.fit] Computing the mask" % self.__class__.__name__)
+            self.mask_img_ = self._cache(compute_mask, ignore=['verbose'])(
+                imgs, verbose=max(0, self.verbose - 1), **mask_args)
         else:
-            self.mask_img_ = _utils.check_niimg(self.mask_img,
-                                                ensure_3d=True)
+            self.mask_img_ = _utils.check_niimg_3d(self.mask_img)
 
         # If resampling is requested, resample also the mask
         # Resampling: allows the user to change the affine, the shape or both
         if self.verbose > 0:
-            print "[%s.fit] Resampling mask" % self.__class__.__name__
-        self.mask_img_ = self._cache(image.resample_img, memory_level=1)(
+            print("[%s.fit] Resampling mask" % self.__class__.__name__)
+        self.mask_img_ = self._cache(image.resample_img)(
             self.mask_img_,
             target_affine=self.target_affine,
             target_shape=self.target_shape,
@@ -188,21 +248,44 @@ class NiftiMasker(BaseMasker, CacheMixin):
         # Load data in memory
         self.mask_img_.get_data()
         if self.verbose > 10:
-            print "[%s.fit] Finished fit" % self.__class__.__name__
+            print("[%s.fit] Finished fit" % self.__class__.__name__)
         return self
 
-    def transform(self, imgs, confounds=None):
-        """ Apply mask, spatial and temporal preprocessing
+    def transform_single_imgs(self, imgs, confounds=None, copy=True):
+        """Apply mask, spatial and temporal preprocessing
 
         Parameters
         ----------
-        imgs: list of Niimg-like objects
-            See http://nilearn.github.io/building_blocks/manipulating_mr_images.html#niimg.
-            Data to be preprocessed
+        imgs: 3D/4D Niimg-like object
+            See http://nilearn.github.io/manipulating_visualizing/manipulating_images.html#niimg.
+            Images to process. It must boil down to a 4D image with scans
+            number as last dimension.
 
-        confounds: CSV file path or 2D matrix
-            This parameter is passed to nilearn.signal.clean. Please see the
-            related documentation for details
+        confounds: CSV file or array-like, optional
+            This parameter is passed to signal.clean. Please see the related
+            documentation for details.
+            shape: (number of scans, number of confounds)
+
+        Returns
+        -------
+        region_signals: 2D numpy.ndarray
+            Signal for each voxel inside the mask.
+            shape: (number of scans, number of voxels)
         """
-        return self.transform_single_imgs(
-            imgs, confounds)
+
+        # Ignore the mask-computing params: they are not useful and will
+        # just invalid the cache for no good reason
+        # target_shape and target_affine are conveyed implicitly in mask_img
+        params = get_params(self.__class__, self,
+                            ignore=['mask_img', 'mask_args', 'mask_strategy'])
+
+        data, _ = self._cache(filter_and_mask,
+                              ignore=['verbose', 'memory', 'memory_level', 'copy'])(
+                                    imgs, self.mask_img_, params,
+                                    memory_level=self.memory_level,
+                                    memory=self.memory,
+                                    verbose=self.verbose,
+                                    confounds=confounds,
+                                    copy=copy
+        )
+        return data

@@ -7,7 +7,7 @@ Test the searchlight module
 from nose.tools import assert_equal
 import numpy as np
 import nibabel
-from .. import searchlight
+from nilearn.decoding import searchlight
 
 
 def test_searchlight():
@@ -20,13 +20,12 @@ def test_searchlight():
     mask = np.ones((5, 5, 5), np.bool)
     mask_img = nibabel.Nifti1Image(mask.astype(np.int), np.eye(4))
     # Create a condition array
-    cond = np.arange(frames, dtype=int) > frames / 2
+    cond = np.arange(frames, dtype=int) > frames // 2
 
     # Create an activation pixel.
     data[2, 2, 2, :] = 0
     data[2, 2, 2][cond.astype(np.bool)] = 2
     data_img = nibabel.Nifti1Image(data, np.eye(4))
-
 
     # Define cross validation
     from sklearn.cross_validation import check_cv

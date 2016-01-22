@@ -3,14 +3,8 @@ anatomy. This is only useful for internal purposes especially when the
 SVG is modified.
 """
 
-import functools
-
-import matplotlib.pyplot as plt
-
 from nilearn import plotting
-from nilearn.plotting import img_plotting, glass_brain
-
-plt.close('all')
+from nilearn.plotting import img_plotting, glass_brain, show
 
 
 # plotting anat for coarse alignment
@@ -25,7 +19,7 @@ display = img_plotting.plot_glass_brain(bg_img, threshold=0,
 # e.g. parieto-occipital sulcus
 
 def add_brain_schematics(display):
-    for axes in display.axes.itervalues():
+    for axes in display.axes.values():
         kwargs = {'alpha': 0.5, 'linewidth': 1, 'edgecolor': 'orange'}
         object_bounds = glass_brain.plot_brain_schematics(axes.ax,
                                                           axes.direction,
@@ -59,4 +53,4 @@ add_brain_schematics(display)
 display = plotting.plot_anat(display_mode='z')
 add_brain_schematics(display)
 
-plt.show()
+show()

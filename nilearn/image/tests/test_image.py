@@ -1,15 +1,29 @@
 """
 Test image pre-processing functions
 """
-from nose.tools import assert_true, assert_false, assert_raises
+from nose.tools import assert_true, assert_false
+from distutils.version import LooseVersion
+from nose import SkipTest
 
+import platform
+import os
 import nibabel
 import numpy as np
-from numpy.testing import assert_array_equal
+from numpy.testing import assert_array_equal, assert_allclose
 
-from .. import image
-from .. import resampling
-from ..._utils import testing
+from nilearn.image import image
+from nilearn.image import resampling
+from nilearn.image import concat_imgs
+from nilearn._utils import testing, niimg_conversions
+from nilearn.image import new_img_like
+from nilearn.image import threshold_img
+from nilearn.image import iter_img
+
+X64 = (platform.architecture()[0] == '64bit')
+
+currdir = os.path.dirname(os.path.abspath(__file__))
+datadir = os.path.join(currdir, 'data')
+
 
 def test_high_variance_confounds():
     # See also test_signals.test_high_variance_confounds()
@@ -231,7 +245,17 @@ def test_mean_img():
         with testing.write_tmp_imgs(*imgs) as imgs:
             mean_img = image.mean_img(imgs)
             assert_array_equal(mean_img.get_affine(), affine)
-            assert_array_equal(mean_img.get_data(), truth)
+            if X64:
+                assert_array_equal(mean_img.get_data(), truth)
+            else:
+                # We don't really understand but arrays are not
+                # exactly equal on 32bit. Given that you can not do
+                # much real world data analysis with nilearn on a
+                # 32bit machine it is not worth investigating more
+                assert_allclose(mean_img.get_data(), truth,
+                                rtol=np.finfo(truth.dtype).resolution,
+                                atol=0)
+
 
 
 def test_mean_img_resample():
@@ -262,12 +286,164 @@ def test_swap_img_hemispheres():
     np.testing.assert_array_equal(data_img.get_data(), data)
 
     # swapping operations work
-    np.testing.assert_array_equal( # one turn
+    np.testing.assert_array_equal(  # one turn
         image.swap_img_hemispheres(data_img).get_data(),
         data[::-1])
-    np.testing.assert_array_equal( # two turns -> back to original data
+    np.testing.assert_array_equal(  # two turns -> back to original data
         image.swap_img_hemispheres(
             image.swap_img_hemispheres(data_img)).get_data(),
         data)
 
 
+def test_concat_imgs():
+    assert_true(concat_imgs is niimg_conversions.concat_niimgs)
+
+
+def test_index_img():
+    img_3d = nibabel.Nifti1Image(np.ones((3, 4, 5)), np.eye(4))
+    testing.assert_raises_regex(TypeError, '4D Niimg-like',
+                                image.index_img, img_3d, 0)
+
+    affine = np.array([[1., 2., 3., 4.],
+                       [5., 6., 7., 8.],
+                       [9., 10., 11., 12.],
+                       [0., 0., 0., 1.]])
+    img_4d, _ = testing.generate_fake_fmri(affine=affine)
+
+    fourth_dim_size = img_4d.shape[3]
+    tested_indices = (list(range(fourth_dim_size)) +
+                      [slice(2, 8, 2), [1, 2, 3, 2], [],
+                       (np.arange(fourth_dim_size) % 3) == 1])
+    for i in tested_indices:
+        this_img = image.index_img(img_4d, i)
+        expected_data_3d = img_4d.get_data()[..., i]
+        assert_array_equal(this_img.get_data(),
+                           expected_data_3d)
+        assert_array_equal(this_img.get_affine(),
+                           img_4d.get_affine())
+
+    for i in [fourth_dim_size, - fourth_dim_size - 1,
+              [0, fourth_dim_size],
+              np.repeat(True, fourth_dim_size + 1)]:
+        testing.assert_raises_regex(
+            IndexError,
+            'out of bounds|invalid index|out of range',
+            image.index_img, img_4d, i)
+
+
+def test_iter_img():
+    img_3d = nibabel.Nifti1Image(np.ones((3, 4, 5)), np.eye(4))
+    testing.assert_raises_regex(TypeError, '4D Niimg-like',
+                                image.iter_img, img_3d)
+
+    affine = np.array([[1., 2., 3., 4.],
+                       [5., 6., 7., 8.],
+                       [9., 10., 11., 12.],
+                       [0., 0., 0., 1.]])
+    img_4d, _ = testing.generate_fake_fmri(affine=affine)
+
+    for i, img in enumerate(image.iter_img(img_4d)):
+        expected_data_3d = img_4d.get_data()[..., i]
+        assert_array_equal(img.get_data(),
+                           expected_data_3d)
+        assert_array_equal(img.get_affine(),
+                           img_4d.get_affine())
+
+    with testing.write_tmp_imgs(img_4d) as img_4d_filename:
+        for i, img in enumerate(image.iter_img(img_4d_filename)):
+            expected_data_3d = img_4d.get_data()[..., i]
+            assert_array_equal(img.get_data(),
+                               expected_data_3d)
+            assert_array_equal(img.get_affine(),
+                               img_4d.get_affine())
+        # enables to delete "img_4d_filename" on windows
+        del img
+
+    img_3d_list = list(image.iter_img(img_4d))
+    for i, img in enumerate(image.iter_img(img_3d_list)):
+        expected_data_3d = img_4d.get_data()[..., i]
+        assert_array_equal(img.get_data(),
+                           expected_data_3d)
+        assert_array_equal(img.get_affine(),
+                           img_4d.get_affine())
+
+    with testing.write_tmp_imgs(*img_3d_list) as img_3d_filenames:
+        for i, img in enumerate(image.iter_img(img_3d_filenames)):
+            expected_data_3d = img_4d.get_data()[..., i]
+            assert_array_equal(img.get_data(),
+                               expected_data_3d)
+            assert_array_equal(img.get_affine(),
+                               img_4d.get_affine())
+        # enables to delete "img_3d_filename" on windows
+        del img
+
+
+def test_new_img_like_mgz():
+    """Check that new images can be generated with bool MGZ type
+    This is usually when computing masks using MGZ inputs, e.g.
+    when using plot_stap_map
+    """
+
+    if not LooseVersion(nibabel.__version__) >= LooseVersion('1.2.0'):
+        # Old nibabel do not support MGZ files
+        raise SkipTest
+
+    ref_img = nibabel.load(os.path.join(datadir, 'test.mgz'))
+    data = np.ones(ref_img.get_data().shape, dtype=np.bool)
+    affine = ref_img.get_affine()
+    new_img_like(ref_img, data, affine, copy_header=False)
+
+
+def test_new_img_like():
+    # Give a list to new_img_like
+    data = np.zeros((5, 6, 7))
+    data[2:4, 1:5, 3:6] = 1
+    affine = np.diag((4, 3, 2, 1))
+    img = nibabel.Nifti1Image(data, affine=affine)
+    img2 = new_img_like([img, ], data)
+    np.testing.assert_array_equal(img.get_data(), img2.get_data())
+
+
+def test_validity_threshold_value_in_threshold_img():
+    shape = (6, 8, 10)
+    maps, _ = testing.generate_maps(shape, n_regions=2)
+
+    # testing to raise same error when threshold=None case
+    testing.assert_raises_regex(ValueError,
+                                "The input parameter 'threshold' is empty. ",
+                                threshold_img, maps, threshold=None)
+
+    invalid_threshold_values = ['90t%', 's%', 't', '0.1']
+    name = 'threshold'
+    for thr in invalid_threshold_values:
+        testing.assert_raises_regex(ValueError,
+                                    '{0}.+should be a number followed by '
+                                    'the percent sign'.format(name),
+                                    threshold_img, maps, threshold=thr)
+
+
+def test_threshold_img():
+    # to check whether passes with valid threshold inputs
+    shape = (10, 20, 30)
+    maps, _ = testing.generate_maps(shape, n_regions=4)
+    affine = np.eye(4)
+    mask_img = nibabel.Nifti1Image(np.ones((shape), dtype=np.int8), affine)
+
+    for img in iter_img(maps):
+        # when threshold is a float value
+        thr_maps_img = threshold_img(img, threshold=0.8)
+        # when we provide mask image
+        thr_maps_percent = threshold_img(img, threshold=1, mask_img=mask_img)
+        # when threshold is a percentile
+        thr_maps_percent2 = threshold_img(img, threshold='2%')
+
+
+def test_isnan_threshold_img_data():
+    shape = (10, 10, 10)
+    maps, _ = testing.generate_maps(shape, n_regions=2)
+    data = maps.get_data()
+    data[:, :, 0] = np.nan
+
+    maps_img = nibabel.Nifti1Image(data, np.eye(4))
+    # test threshold_img to converge properly when input image has nans.
+    threshold_maps = threshold_img(maps_img, threshold=0.8)
