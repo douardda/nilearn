@@ -173,7 +173,12 @@ class MyFolderPicker(QWidget):
         l = QHBoxLayout(self, spacing=0, margin=0)
         self._edit = QLineEdit()
         l.addWidget(self._edit)
-        l.addWidget(QToolButton(text="...", clicked=self.choose_folder))
+
+        style = self.style()
+        btn = QPushButton(text="", flat=True,
+                          icon=style.standardIcon(style.SP_DirOpenIcon),
+                          clicked=self.choose_folder)
+        l.addWidget(btn)
         self._folder = None
 
     def choose_folder(self):
