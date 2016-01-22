@@ -19,7 +19,7 @@ from externals.formlayout.formlayout import fedit, QApplication, QWebView
 from externals import tempita
 
 import report_api as api
-from .reportviewer import ReportViewer
+from reportviewer import ReportViewer
 
 TEMPLATES = osp.join(osp.dirname(__file__), 'templates')
 REPORT = osp.join(TEMPLATES, 'report')
@@ -137,7 +137,7 @@ def main():
             canica = get_fitted_canica(func_files, **params)
             # Retrieve the independent components in brain space
             components_img = canica.masker_.inverse_transform(canica.components_)
-            img_src_filenames = generate_images(components_img, params['n_compoanents'],
+            img_src_filenames = generate_images(components_img, params['n_components'],
                                                 osp.join(output_dir, 'images'))
             json.dump(params, open(osp.join(output_dir, 'params.json'), 'w'))
             # img src in the html needs to be relative to index.html

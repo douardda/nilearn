@@ -21,7 +21,7 @@ class Container(object):
 class Report(Container):
     def __init__(self):
         super(Report, self).__init__()
-        from .generate_report import TEMPLATES
+        from generate_report import TEMPLATES
         self.template = tempita.Template.from_filename(
             osp.join(TEMPLATES, 'main_template.html'))
 
