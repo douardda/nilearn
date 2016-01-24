@@ -4,7 +4,7 @@
 """
 
 from externals.formlayout.formlayout import (QDialog, QWebView, QUrl, QVBoxLayout,
-                                             QDialogButtonBox, QTextEdit)
+                                             QDialogButtonBox, QTextEdit, QFont, Qt, Signal)
 
 class ReportViewer(QDialog):
     def __init__(self, url, parent=None):
@@ -22,20 +22,28 @@ class ReportViewer(QDialog):
         
 
 class ComputationProgressViewer(QDialog):
+    append = Signal(str)
     def __init__(self, parent=None):
         super(ComputationProgressViewer, self).__init__(parent)
         l = QVBoxLayout(self)
         self.tv = QTextEdit(readOnly=True)
-        self.tv.setFontFamily('courrier')
+        
+        font = QFont("Courier New")
+        font.setFixedPitch(True)
+        self.tv.setFont(font)
+        
         self.resize(800,600)
         l.addWidget(self.tv)
 
         bb = QDialogButtonBox(QDialogButtonBox.Close)
         l.addWidget(bb)
-
         bb.rejected.connect(self.reject)
         bb.accepted.connect(self.accept)
-    
+
+        # we use a queued connection since a write may come from another thread
+        self.append.connect(self.tv.append, type=Qt.QueuedConnection)
+
     def write(self, value):
-        self.tv.append(value)
+        self.append.emit(value)
+
     
