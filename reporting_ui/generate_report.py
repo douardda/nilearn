@@ -8,6 +8,7 @@ import shutil
 import collections
 import json
 import threading
+import time
 
 import nibabel
 
@@ -154,17 +155,21 @@ def main():
 
         params = chose_params()
         if params:
-            stdout = sys.stdout
-            dlg = ComputationProgressViewer()
-            sys.stdout = dlg
-            compute_thread = threading.Thread(target=run,
-                                              args=(func_files, params, output_dir))
-            compute_thread.start()
-            dlg.show()
-            while compute_thread.isAlive():
-                sys.stderr.write('.')
-                app.processEvents()
-            sys.stdout = stdout
+            stdout, stderr = sys.stdout, sys.stderr
+            try:
+                dlg = ComputationProgressViewer()
+                sys.stdout = dlg
+                sys.stderr = dlg
+                compute_thread = threading.Thread(target=run,
+                                                  args=(func_files, params, output_dir))
+                dlg.show()
+                compute_thread.start()
+                while compute_thread.isAlive():
+                    app.processEvents()
+                    time.sleep(0.3)
+                compute_thread.join()
+            finally:
+                sys.stdout, sys.stderr = stdout, stderr
             json.dump(params, open(osp.join(output_dir, 'params.json'), 'w'))
 
     if params:
