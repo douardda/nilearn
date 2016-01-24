@@ -1,6 +1,5 @@
 # -*- coding: utf-8 -*-
-"""
-formlayout
+"""formlayout
 ==========
 
 Module creating Qt form dialogs/layouts to edit various type of parameters
@@ -31,11 +30,16 @@ HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
 WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
 FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 OTHER DEALINGS IN THE SOFTWARE.
+
+WARNING: this is a modified version of the original formlayout code to
+meet the needs of the nilearn project.
+
 """
 
 from __future__ import print_function
 
 # History:
+# XXX: modifications for the nilearn project
 # 1.0.15: added support for multiline strings
 # 1.0.14: fixed Python 3 support (regression in 1.0.13)
 # 1.0.13: replaced obsolete QColorDialog.getRgba function and fixed other

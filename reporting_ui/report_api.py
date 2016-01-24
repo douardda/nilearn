@@ -8,8 +8,8 @@ class Container(object):
     def __init__(self):
         self._children = []
 
-    def add(self, obj):
-        self._children.append(obj)
+    def add(self, *obj):
+        self._children.extend(obj)
         return self
 
     def get_children_html(self):
